@@ -1,0 +1,92 @@
+Install-Package PrtgAPI
+Connect-PrtgServer mon.cirpk.permkrai.ru (New-Credential LOGIN PASS)
+$devices = (Get-Content D:\prtgAPI\PrtgAPI\addDev.csv | ConvertFrom-CSV -Delimiter ";")
+$devices | % {Get-Group -Id 7002 | Add-Device $_.Name $_.Address -AutoDiscover -Template "Linux SNMP"}
+
+# Права для групп пользователей на устройства
+Get-Device exch* | Set-ObjectProperty -RawParameters @{
+    accessrights_=1
+    accessrights_201=100
+    accessgroup=0
+} -Force
+
+Get-Device *RISOGD-* | Set-ObjectProperty Tags RISOGD
+
+$p = Get-Device "srv - ping" | New-SensorParameters -RawType ping
+Get-Device "srv - ping" | Add-Sensor $p
+Get-Device -id 19822 | Add-Sensor $p
+
+//////////////////// Добавляем пинг устройству
+
+get-sensortype *ping*  // Находим нужный сенсор(название)
+
+$p = Get-Device "Kompleks-s-GATE" | New-SensorParameters -RawType ping // Создаем параметры для датчика из какого-либо устройства (можно менять параметры)
+$d | Add-Sensor $p // Добавляем датчик
+
+
+$d = Get-Group -id 17723 | Get-Device  // получаем девайсы группы по id
+$p = Get-Device "Kompleks-s-GATE" | New-SensorParameters -RawType ping // Создаем параметры для датчика из какого-либо устройства
+$d | Add-Sensor $p // Добавляем датчики
+
+$d | Get-Sensor *ping* | Remove-Object -Force  // удаляем датчики в группе
+
+
+//
+
+////////////////// Перемещение объекта через http ///////////////////
+https://mon.cirpk.permkrai.ru/moveobjectnow.htm?id=<object-id>&targetid=<id-of-target-folder>
+////////////////////////////////////////////////////////////////////
+
+////////// получаем ip из файла ///////////////
+$ips = (Get-Content D:\prtgAPI\PrtgAPI-2\ip.csv | ConvertFrom-CSV -Delimiter ";")
+
+//////////// получаем устройства по ip ////////////////////
+$devs = $ips | % {get-device -host $_.ip}
+
+///////////// получаем id устройств ///////////////////
+$ids = $devs | select id
+
+////////////////////// Пример конкатинации //////////////////////
+$ids | % {Write-Output "Some text  $($_.id)  Another"}
+
+//////////////////// запрос для powershell на перемещение ///////////////
+
+$session = New-Object Microsoft.PowerShell.Commands.WebRequestSession
+$session.UserAgent = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/93.0.4577.63 Safari/537.36"
+$session.Cookies.Add((New-Object System.Net.Cookie("OCTOPUS161222657", "e0U3RUNBRjY2LTNFNkUtNEZFRi1CNkFCLThEOTkxOTBBMzA4OH0%3D", "/", "mon.cirpk.permkrai.ru")))
+
+$ips = (Get-Content D:\prtgAPI\PrtgAPI-2\ip.csv | ConvertFrom-CSV -Delimiter ";")
+$devs = $ips | % {get-device -host $_.ip}
+$ids = $devs | select id
+
+
+$ids | % {Invoke-WebRequest -UseBasicParsing -Uri "https://mon.cirpk.permkrai.ru/moveobjectnow.htm?id=$($_.id)&targetid=32477" `
+ -WebSession $session `
+ -Headers @{
+ "sec-ch-ua"="`"Google Chrome`";v=`"93`", `" Not;A Brand`";v=`"99`", `"Chromium`";v=`"93`""
+   "sec-ch-ua-mobile"="?0"
+   "sec-ch-ua-platform"="`"Windows`""
+   "Upgrade-Insecure-Requests"="1"
+   "Accept"="text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.9"
+   "Sec-Fetch-Site"="none"
+   "Sec-Fetch-Mode"="navigate"
+   "Sec-Fetch-User"="?1"
+   "Sec-Fetch-Dest"="document"
+   "Accept-Encoding"="gzip, deflate, br"
+   "Accept-Language"="ru,ru-RU;q=0.9,en-US;q=0.8,en;q=0.7"
+ }}
+ 
+
+/////////////////////////////////////////////////////////////////////////
+
+Write-Output(123) *>&1 | tee -Append test.log
+
+////////////// выборка где сенсоров менее 3 ///////////////////////////////////////
+
+$is | Get-Device | Select-Object -Property host, group, upsensors |Where-Object -Property upsensors -lt 3 |Format-list > ./res.txt
+
+
+
+
+
+
